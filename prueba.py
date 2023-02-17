@@ -4,39 +4,25 @@
 
 # COMMAND ----------
 
-from sklearn.model_selection import train_test_split
+import re #libreria expresiones regulares
+import prince
 import pandas as pd
 import numpy as np
-from prince import MCA #reduir dimensionalidad
-
-import pandas as pd
-from scipy.stats import spearmanr
 import matplotlib.pyplot as plt
 import bamboolib as bam #from sklearn.neural_network import MLPRegressor
-import re #libreria expresiones regulares
+from sklearn.model_selection import train_test_split
+from sklearn.cluster import KMeans
+from scipy.stats import spearmanr
+from pyspark.sql.types import DoubleType
+from pyspark.sql.functions import split
+from pyspark.sql.functions import regexp_replace
+from pyspark.sql.functions import col
+from prince import MCA #reduir dimensionalidad
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 
 # COMMAND ----------
-
-# STEP 2: RUN THIS CELL TO IMPORT AND USE BAMBOOLIB
-
-
-
-# This opens a UI from which you can import your data
-bam  
-
-# Already have a pandas data frame? Just display it!
-# Here's an example
-# import pandas as pd
-# df_test = pd.DataFrame(dict(a=[1,2]))
-# df_test  # <- You will see a green button above the data set if you display it
-
-# COMMAND ----------
-
-
-
 
 df = pd.read_csv(r'/dbfs/FileStore/shared_uploads/rlascocz@gmail.com/diabetic_data.csv', sep=',', decimal='.')
 # Step: Drop duplicates based on ['encounter_id']
@@ -50,9 +36,6 @@ df = df.drop(columns=["medical_specialty","max_glu_serum","A1Cresult"])
 
 columna_a_excluir ='readmitted'
 
-#evaluar  relacion numero de variables contra numero de registros
-#No hay una regla estricta sobre la proporción exacta de variables y registros, pero algunos expertos sugieren que una buena regla empírica es tener al menos cinco veces más observaciones que variables en el conjunto de datos.
-
 # Separar las variables predictoras y la variable objetivo
 X = df.drop(columna_a_excluir, axis=1)  # características
 y = df[columna_a_excluir]  # variable objetivo
@@ -61,7 +44,6 @@ X_model, X_etl, y_model, y_etl = train_test_split(X, y, test_size=0.1, stratify=
 
 
 # COMMAND ----------
-
 
 conteo_val = y_etl.value_counts(normalize=True)*100
 print("para evaluacion se tienen {} valores, y se distribuyen \n{}".format(y_etl.count(),conteo_val))
@@ -72,24 +54,16 @@ print("para entrenamiento se tienen {} valores, y se distribuyen \n{}".format(y_
 
 df = pd.concat([X_model, y_model], axis=1)
 
-
 # COMMAND ----------
-
 
 # Calcular la correlación de Spearman
 corr, p = spearmanr(df)
 # Crear un dataframe con los resultados
 corr_df = pd.DataFrame(corr, index=df.columns, columns=df.columns)
 
-# Mostrar el resultado
-"""correlacion_spearman=df.corr(method='spearman')
-correlacion_spearman.info()"""
-
-
 # COMMAND ----------
 
 importancia_variables=corr_df["readmitted"]
-
 importancia_variables =importancia_variables.abs().sort_values(ascending=False)*100
 importancia_variables=importancia_variables.reset_index()
 importancia_variables= importancia_variables.loc[importancia_variables["readmitted"] > 0.5]
@@ -110,13 +84,6 @@ plt.show()
 
 # COMMAND ----------
 
-columnas_importancia
-
-# COMMAND ----------
-
-
-
-
 # filtrar el DataFrame para incluir solo las columnas en col_names
 df_filtrado = df.loc[:, columnas_importancia]
 
@@ -125,9 +92,6 @@ df_filtrado = df.loc[:, columnas_importancia]
 
 numeric_cols = df_filtrado.select_dtypes(include=['int', 'float']).columns.tolist()
 categorical_cols = df_filtrado.select_dtypes(include=['object']).columns.tolist()
-
-# COMMAND ----------
-
 df_num=df_filtrado[numeric_cols]
 df_categ=df_filtrado[categorical_cols]
 
@@ -154,8 +118,6 @@ percentages = pd.concat([percentages, acumulada], axis=1)
 percentages = pd.concat([percentages,df_categ[columna].value_counts() ], axis=1)
 percentages=percentages.reset_index()
 
-# Mostrar gráfico
-plt.show()
 print(percentages)
 
 
@@ -209,9 +171,6 @@ print(df_categ[["diag_1","diag_2","diag_3"]])
 
 # COMMAND ----------
 
-import prince
-import matplotlib.pyplot as plt
-
 # cargar los datos
 data = df_categ[["diag_1","diag_2","diag_3"]]
 
@@ -229,8 +188,6 @@ plt.ylabel('Inercia acumulada')
 plt.show()
 
 # COMMAND ----------
-
-
 
 # Creamos un ejemplo de DataFrame con una columna categórica
 columna="diag_1"
@@ -394,7 +351,6 @@ df_categ.info()
 # COMMAND ----------
 
 columna_a_excluir ='readmitted'
-
 # variable objetivo
 y_model= df_categ[columna_a_excluir]  
 # Separar las variables predictoras y la variable objetivo
@@ -438,23 +394,13 @@ X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, stratify=
 
 # COMMAND ----------
 
-
 conteo_val = y_val.value_counts(normalize=True)*100
 print("para evaluacion se tienen {} valores, y se distribuyen {} \n".format(y_val.count(),conteo_val))
 conteo_train = y_train.value_counts(normalize=True)*100
 print("para entrenamiento se tienen {} valores, y se distribuyen {} \n".format(y_train.count(),conteo_train))
 
 
-
-
 # COMMAND ----------
-
-from sklearn.cluster import KMeans
-import matplotlib.pyplot as plt
-import pandas as pd
-
-
-
 
 # Almacenar los valores de la inercia en una lista
 inertia = []
@@ -549,20 +495,10 @@ print(tabla_contingencia)
 
 # COMMAND ----------
 
-from pyspark.sql.functions import regexp_replace
-from pyspark.sql.functions import split
-from pyspark.sql.types import DoubleType
-from pyspark.sql.functions import col
-
-# COMMAND ----------
-
 df = spark.read.format("csv").option("header", "true").load("dbfs:/FileStore/shared_uploads/rlascocz@gmail.com/diabetic_data.csv")
 
 # COMMAND ----------
 
-
-
-# Luego, usamos la función `cast` para convertir la columna a su nuevo tipo
 columnas_numericas = df_num.columns
 
 # Convertir las columnas a tipo float utilizando un loop
@@ -572,24 +508,8 @@ for columna in columnas_numericas:
 
 # COMMAND ----------
 
-# revision de los atributos del data frame
-
-df.printSchema()
-total_registros =df.count()
-print(total_registros)
-
-
-# COMMAND ----------
-
 valores=df.select("readmitted").distinct().collect()
-
 print(valores)
-
-
-# COMMAND ----------
-
-
-df.describe().display()
 
 
 # COMMAND ----------
@@ -611,11 +531,3 @@ df_num = df.select([col(c) for c in numeric_cols])
 #valores_permitidos = [1, 2, 3]
 #nueva_etiqueta = 'otro'
 #df_categ = df.withColumn('diag_1', when(df[''diag_1''].isin(valores_permitidos), df['col_a_reemplazar']).otherwise(nueva_etiqueta))
-
-
-
-
-
-# COMMAND ----------
-
-
